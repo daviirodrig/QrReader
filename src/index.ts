@@ -1,56 +1,61 @@
-import {
-  BarcodeFormat,
-  DecodeHintType,
-  BrowserMultiFormatReader,
-} from "@zxing/library";
+import jsQR from "jsqr";
 
-const fileInput = document.querySelector("#file-input");
+const fileInput = document.querySelector<HTMLInputElement>("#file-input")!;
 
-fileInput.addEventListener("change", async (e: InputEvent) => {
+fileInput.addEventListener("change", handleFileInputChange);
+
+document.addEventListener("paste", handlePasteEvent);
+
+async function handleFileInputChange(e: Event): Promise<void> {
   const target = e.target as HTMLInputElement;
-  if (target.files.length == 0) {
+  if (target.files?.length === 0) {
     return;
   }
   const image = target.files[0];
   await scan(image);
-});
-document.addEventListener("paste", async (event: ClipboardEvent) => {
-  const items = event.clipboardData.items;
-  for (let index in items) {
-    const item = items[index];
+}
+
+async function handlePasteEvent(event: ClipboardEvent): Promise<void> {
+  const items = event.clipboardData?.items ?? [];
+  for (const item of items) {
     if (item.kind === "file") {
       const blob = item.getAsFile();
-      await scan(blob);
+      await scan(blob!);
     }
   }
-});
+}
 
-async function scan(image: File) {
-  const fileReader = new FileReader();
-
-  const imgElement: HTMLImageElement =
-    document.querySelector("#img-result") || document.createElement("img");
+async function scan(image: File): Promise<void> {
+  const imgElement = document.querySelector<HTMLImageElement>("#img-result") ?? document.createElement("img");
   imgElement.setAttribute("id", "img-result");
 
-  fileReader.onload = async (ev) => {
-    imgElement.src = ev.target.result.toString();
-    const container = document.querySelector("#result-wrapper");
+  const fileReader = new FileReader();
+
+  fileReader.onload = () => {
+    imgElement.src = fileReader.result as string;
+    const container = document.querySelector("#result-wrapper")!;
     container.appendChild(imgElement);
-    const resultElement = document.querySelector("#result-text");
-    const text = await readQR(imgElement);
-    resultElement.textContent = text;
+
+    imgElement.onload = () => {
+      const pixels = imageToPixels(imgElement);
+      const text = jsQR(pixels, imgElement.width, imgElement.height);
+      const resultElement = document.querySelector("#result-text")!;
+      resultElement.textContent = text?.data;
+    };
   };
   fileReader.readAsDataURL(image);
 }
 
-async function readQR(img: HTMLImageElement): Promise<string> {
-  const hints = new Map();
-  const formats = [BarcodeFormat.QR_CODE];
+function imageToPixels(image: HTMLImageElement): Uint8ClampedArray {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
 
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(image, 0, 0);
 
-  const reader = new BrowserMultiFormatReader(hints);
-  console.log(img.src);
+  const imageData = ctx.getImageData(0, 0, image.width, image.height);
+  const pixels = new Uint8ClampedArray(imageData.data);
 
-  return (await reader.decodeFromImage(img)).getText();
+  return pixels;
 }
