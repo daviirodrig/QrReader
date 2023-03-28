@@ -1,3 +1,4 @@
+import "./main.css"
 import jsQR from "jsqr";
 
 const fileInput = document.querySelector<HTMLInputElement>("#file-input")!;
